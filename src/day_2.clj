@@ -53,10 +53,19 @@
 (comment
   (def games (read-input-file "0201.txt"))
 
+  ;; part 1
   (->> games
        (filter (comp (partial possible-game?
                               {:red 12 :green 13 :blue 14})
                      game-str->max-game))
        (map game-str->game-id)
+       (apply +))
+
+  ;; part 2
+  (->> games
+       (map (comp
+             (partial apply *)
+             vals
+             game-str->max-game))
        (apply +))
   )
