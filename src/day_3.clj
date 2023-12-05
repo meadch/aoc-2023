@@ -2,9 +2,6 @@
   (:require [core :refer [read-input-file]]
             [clojure.string :as str]))
 
-(defn coordinate->adjacent-coordinates
-  [coordinate])
-
 (defn find-number-groups [s]
   (re-seq #"\d+" s))
 
@@ -41,6 +38,13 @@
                    i)))
        (remove nil?)))
 
+(defn row->gear-indices [row]
+  (->> row
+       (map-indexed (fn [i c]
+                      (when (re-find #"\*" (str c))
+                        i)))
+       (remove nil?)))
+
 (defn adjacent-coordinates [{:keys [x y]}]
   (let [deltas [-1 0 1]]
     (for [dx deltas, dy deltas
@@ -57,7 +61,23 @@
          set
          (remove (set digit-coords)))))
 
+(defn number-group->coords [number-group]
+  (let [{:keys [y start end val]} number-group
+        id (random-uuid)]
+    (map (fn [x] {:y y :x x :val val :id id}) (range start (inc end)))))
+
+(defn gear->number-groups [number-coords gear]
+  (->> (adjacent-coordinates gear)
+       (map (fn [{:keys [x y]}]
+              (get-in number-coords [y x])))
+
+       (remove nil?)
+       (group-by :id)
+       (#(update-vals % first))
+       vals))
+
 (comment
+  ;; part 1
   (def schematic (read-input-file "0301.txt"))
 
   (def number-groups (apply concat (remove empty? (map-indexed (fn [i row]
@@ -77,6 +97,8 @@
                                (reduce (fn [acc {:keys [y x]}]
                                          (assoc-in acc [y x] true)) {})))
 
+  ;; answer
+  
   (->> number-groups
        (filter (fn [number-group]
                  (some (fn [adjacent-coord]
@@ -86,6 +108,42 @@
        (map :val)
        (apply +))
 
+
+  )
+
+(comment
+  ;; part 2
+  (def schematic (read-input-file "0301.txt"))
+
+  (def number-coords (->> schematic
+                          (map-indexed (fn [i row]
+                                         (->> row
+                                              parse-number-groups
+                                              (map (fn [group]
+                                                     (assoc group :y i))))))
+                          (remove empty?)
+                          (apply concat)
+                          (mapcat number-group->coords)
+                          (reduce (fn [acc {:keys [y x] :as item}]
+                                    (assoc-in acc [y x] item)) {})))
+
+  (def potential-gears (->> schematic
+                            (map-indexed (fn [i row]
+                                           (->> row
+                                                row->gear-indices
+                                                (map (fn [j]
+                                                       {:y i :x j})))))
+                            (apply concat)))
+
+  ;; answer
+  (->> potential-gears
+       (map
+        (fn [gear]
+          (let [adjacent-groups (gear->number-groups number-coords gear)]
+            (when (= 2 (count adjacent-groups))
+              (apply * (map :val adjacent-groups))))))
+       (remove nil?)
+       (apply +))
   
   )
   
