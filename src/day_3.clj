@@ -13,14 +13,26 @@
   (.indexOf s sub))
 
 
+(defn replace-chunk [s chunk replacement]
+  (str/replace-first s (re-pattern chunk) (apply str (repeat (count chunk) replacement))))
+
 (defn parse-number-groups [row]
   (->> row
        find-number-groups
-       (map (comp
-             #(update % :val parse-long)
-             #(assoc % :end (+ -1 (:start %) (count (:val %))))
-             #(assoc % :start (substring-index row (:val %)))
-             (partial hash-map :val)))))
+       (reduce (fn [{:as acc :keys [remaining]} chunk]
+
+                 (let [start (substring-index remaining chunk)
+                       end   (+ -1 start (count chunk))
+                       group (-> {:val chunk}
+                                 (assoc :start start :end end)
+                                 (update :val parse-long))]
+
+                   (-> acc
+                       (update :groups conj group)
+                       (update :remaining #(replace-chunk % chunk ".")))))
+               {:remaining row :groups []})
+       :groups))
+
 
 (defn row->symbol-indices [row]
   (->> row 
@@ -46,7 +58,7 @@
          (remove (set digit-coords)))))
 
 (comment
-  (def schematic (read-input-file "0301.sample.txt"))
+  (def schematic (read-input-file "0301.txt"))
 
   (def number-groups (apply concat (remove empty? (map-indexed (fn [i row]
                                                                  (->> row
@@ -54,17 +66,6 @@
                                                                       (map (fn [group]
                                                                              (assoc group :y i)))))
                                                                schematic))))
-
-  (->> number-groups
-       
-       
-       (filter (fn [number-group]
-                 (some (fn [adjacent-coord]
-                         (let [{:keys [x y]} adjacent-coord]
-                           (get-in symbol-coordinates [y x])))
-                       (number-group->adjacent-coordinates number-group))))
-       (map :val)
-       (apply +))
 
   (def symbol-coordinates (->> schematic
                                (map-indexed (fn [i row]
@@ -75,5 +76,16 @@
                                (apply concat)
                                (reduce (fn [acc {:keys [y x]}]
                                          (assoc-in acc [y x] true)) {})))
+
+  (->> number-groups
+       (filter (fn [number-group]
+                 (some (fn [adjacent-coord]
+                         (let [{:keys [x y]} adjacent-coord]
+                           (get-in symbol-coordinates [y x])))
+                       (number-group->adjacent-coordinates number-group))))
+       (map :val)
+       (apply +))
+
+  
   )
   
